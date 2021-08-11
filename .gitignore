@@ -1,0 +1,10 @@
+#Please Ignore
+/.idea
+/.settings
+/images
+/target
+.classpath
+.project
+/src/test
+phantxmh-passlogger.iml
+
