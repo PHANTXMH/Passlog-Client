@@ -9,6 +9,7 @@ import javax.swing.*;
 import RestConsumer.RestClient;
 import client.Authentication.Authentication;
 import client.models.Credentials;
+import client.models.Token;
 import client.models.Users;
 
 public class GUI
@@ -71,8 +72,7 @@ public class GUI
 	public JButton loginButton;
 	private static JLabel copyrightLabel = new JLabel("Copyright and Powered by MH Productions © 2021. All Rights Reserved.");
 	private JPanel copyrightPanel = new JPanel();
-
-	private static RestClient restClient = new RestClient();
+	private final RestClient restClient = new RestClient();
 	private  Users activeUser;
 	int tpi = 0;	//TABLE POPULATION INCREMENTER
 	int records;
@@ -84,6 +84,10 @@ public class GUI
 	List<Credentials> searchCredentials;
 	boolean userExist = false;
 
+	public RestClient getRestClient(){
+		return restClient;
+	}
+
 	ActionListener editCredentialAction = new ActionListener(){
 		public void actionPerformed(ActionEvent editCredentialListener)
 		{
@@ -93,7 +97,7 @@ public class GUI
 						"Edit Credenential", JOptionPane.WARNING_MESSAGE);
 			}else
 			{
-				new RestClient().updateCredential(
+				restClient.updateCredential(
 						new Credentials(searchCredentials.get(0).getId(),usernameTextField.getText(),
 								passwordTextField.getText(),descriptionTextField.getText(),
 								applicationTextField.getText()));
@@ -116,7 +120,7 @@ public class GUI
 						"Edit Credenential", JOptionPane.WARNING_MESSAGE);
 			}else
 			{
-				searchCredentials = new RestClient().searchCredentialByUserId(
+				searchCredentials = restClient.searchCredentialByUserId(
 						new Credentials(usernameTextField.getText(),passwordTextField.getText(),
 								descriptionTextField.getText(),applicationTextField.getText().toUpperCase()),activeUser.getId());
 				if(searchCredentials.size() > 1){
@@ -216,6 +220,7 @@ public class GUI
 	{
 		public void actionPerformed(ActionEvent loginListener)
 		{
+			restClient.setUserToken(getLoginCredentials());	//GETS TOKEN FROM SERVER
 			login.authenticateCredentials(guiClass, getLoginCredentials());
 		}
 	};
@@ -229,7 +234,7 @@ public class GUI
 			}else
 			{
 //				usernameTextField.setText(usernameTextField.getText().toLowerCase());
-				userExist = new RestClient().addNewUser(new Users(firstNameTextField.getText(),
+				userExist = restClient.addNewUser(new Users(firstNameTextField.getText(),
 						lastNameTextField.getText(),usernameTextField.getText().toLowerCase(),
 						passwordTextField.getText(),7));
 				if(userExist){
@@ -258,7 +263,7 @@ public class GUI
 						"Add Credenential", JOptionPane.WARNING_MESSAGE);
 			}else
 			{
-				new RestClient().addNewCredential(new Credentials(
+				restClient.addNewCredential(new Credentials(
 						usernameTextField.getText(),passwordTextField.getText(),
 						descriptionTextField.getText(),applicationTextField.getText(),
 						activeUser.getId()));
@@ -325,7 +330,7 @@ public class GUI
 
 			if(dialogButton == JOptionPane.YES_OPTION)
 			{
-				new RestClient().deleteCredentialById(searchCredentials.get(0).getId());
+				restClient.deleteCredentialById(searchCredentials.get(0).getId());
 				refreshTable();
 				populateCredentialTable();
 				secondFrame.dispose();
@@ -344,7 +349,7 @@ public class GUI
 						"Delete Credenential", JOptionPane.WARNING_MESSAGE);
 			}else
 			{
-				searchCredentials = new RestClient().searchCredentialByUserId(
+				searchCredentials = restClient.searchCredentialByUserId(
 						new Credentials(usernameTextField.getText(), passwordTextField.getText(),
 								descriptionTextField.getText(), applicationTextField.getText().toUpperCase()), activeUser.getId());
 
@@ -681,9 +686,9 @@ public class GUI
 		if(usernameTextField.getText().isEmpty() || loginPasswordTextField.getText().isEmpty()){
 			JOptionPane.showMessageDialog(null, "Both fields must be entered!",
 					"Log In", JOptionPane.WARNING_MESSAGE);
-			return null;
+			throw new IllegalStateException("Both fields must be entered!");
 		}else
-		return new Users(usernameTextField.getText(),loginPasswordTextField.getText());
+		return new Users(usernameTextField.getText().toLowerCase(),loginPasswordTextField.getText());
 	}
 
 	public void acceptActiveUser(Users user){
@@ -777,7 +782,7 @@ public class GUI
 		}
 		themeLabel.setBackground(theme);
 		copyrightLabel.setForeground(theme);
-		new RestClient().updateActiveUserTheme(activeUser);
+		restClient.updateActiveUserTheme(activeUser);
 		secondFrame.dispose();
 	}
 	

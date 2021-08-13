@@ -2,6 +2,7 @@ package client.models;
 
 import java.awt.*;
 import java.io.Serializable;
+import java.util.Collection;
 
 public class Users implements Serializable
 {
@@ -12,6 +13,7 @@ public class Users implements Serializable
 	private String username;
 	private String password;
 	private int theme;
+	private Collection<Role> roles;
 	
 	public Users(){
 		this.id = 0;

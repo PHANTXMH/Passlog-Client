@@ -21,7 +21,7 @@ public class Authentication
 		try{
 			if(userLogin != null)
 			{
-				user = new RestClient().getUserLogin(userLogin);
+				user = gui.getRestClient().getUserLogin();
 				if(user  == null){
 					JOptionPane.showMessageDialog(null,
 							"User does not exist!","Log In",
