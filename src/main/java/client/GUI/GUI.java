@@ -247,8 +247,10 @@ public class GUI
 					JOptionPane.showMessageDialog(null,
 							"Account created, thank you for choosing Passlog!",
 							"Add User", JOptionPane.INFORMATION_MESSAGE);
-					new Authentication().authenticateCredentials(guiClass,
-							new Users(usernameTextField.getText(), passwordTextField.getText()));
+					restClient.setUserToken(new Users(usernameTextField.getText(), passwordTextField.getText()));	//GETS TOKEN FROM SERVER
+					login.authenticateCredentials(guiClass, new Users(usernameTextField.getText(), passwordTextField.getText()));
+//					new Authentication().authenticateCredentials(guiClass,
+//							new Users(usernameTextField.getText(), passwordTextField.getText()));
 				}
 			}
 		}
@@ -508,6 +510,7 @@ public class GUI
 			{
 				frame.dispose();
 				activeUser = null;
+				restClient.setToken(null);
 				createAuthenticationGUI();
 			}
 		}
@@ -650,6 +653,8 @@ public class GUI
 			lastNameTextField.setText("");
 			usernameTextField.setText("");
 			passwordTextField.setText("");
+			passwordTextField.setBackground(Color.WHITE);
+			passwordTextField.setEditable(true);
 			usernameTextField.setColumns(20);
 			passwordTextField.setColumns(20);
 			usernamePanel.removeAll();
