@@ -5,6 +5,7 @@ import java.lang.reflect.Type;
 import java.net.InetSocketAddress;
 import java.util.*;
 
+import client.GUI.GUI;
 import client.models.Token;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -13,10 +14,7 @@ import org.apache.coyote.Response;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.HttpServerErrorException;
-import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.*;
 
 import client.models.Credentials;
 import client.models.Users;
@@ -40,11 +38,13 @@ public class RestClient {
 	private static final String UPDATE_USER_THEME = URL+"/api/updateusertheme";
 	private static final String GET_REFRESH_TOKEN = URL+"/api/token/refresh";
 	private static RestTemplate restTemplate = new RestTemplate();
-	private Token token;
+	private final GUI gui;
+	private Token token = new Token();
 	private List<String> responseHeaders = new ArrayList<>();
 	private boolean tokenRefreshed = false;
 	
-	public RestClient(){
+	public RestClient(GUI gui){
+		this.gui = gui;
 
 	}
 
@@ -54,34 +54,49 @@ public class RestClient {
 		String body = "username="+user.getUsername()+"&password="+user.getPassword();
 		HttpEntity entity = new HttpEntity(body,headers);
 		try{
+			System.out.println("getting user tokens from server");
 			ResponseEntity<String[]> response = restTemplate.postForEntity(GET_USER_TOKEN,entity, String[].class);
 			String[] userToken = response.getBody();
 			if(userToken != null){
 				token = new Token(userToken[0], userToken[1]);
 			}
+		}catch (NullPointerException n){
+			System.out.println("null pointer exception called");
+			JOptionPane.showMessageDialog(null,
+					"Null pointer in resclient object","Login",
+					JOptionPane.WARNING_MESSAGE);
 		}catch (ResourceAccessException r){
+			System.out.println("connection lost");
 			JOptionPane.showMessageDialog(null,
 					"Unable to connect to the server!","Connection Failed",
 					JOptionPane.WARNING_MESSAGE);
-		}catch (Exception e){
-			System.out.println("SENDING REFRESH TOKEN");
-			HttpHeaders refreshHeaders = new HttpHeaders();
-			refreshHeaders.set("Authorization", "Bearer "+token.getRefreshToken());
-			HttpEntity refreshEntity = new HttpEntity(refreshHeaders);
-			try{
-				ResponseEntity<String[]> response = restTemplate.exchange(GET_REFRESH_TOKEN,HttpMethod.GET,refreshEntity,String[].class);
-				System.out.println("UPDATING NEW TOKENS");
-				token.setAccessToken(response.getBody()[0]);
-				System.out.println("RE-EXECUTING UPDATE THEME METHOD");
-				if(!tokenRefreshed){
-					tokenRefreshed = true;
+		}catch (HttpStatusCodeException sc){
+			HttpStatus status = sc.getStatusCode();
+			if(status.equals(HttpStatus.UNAUTHORIZED)) {	//Access token needs refreshing
+				System.out.println("SENDING REFRESH TOKEN");
+				HttpHeaders refreshHeaders = new HttpHeaders();
+				refreshHeaders.set("Authorization", "Bearer "+token.getRefreshToken());
+				HttpEntity refreshEntity = new HttpEntity(refreshHeaders);
+				try{
+					ResponseEntity<String[]> response = restTemplate.exchange(GET_REFRESH_TOKEN,HttpMethod.GET,refreshEntity,String[].class);
+					System.out.println("UPDATING NEW TOKENS");
+					token.setAccessToken(response.getBody()[0]);
+					System.out.println("refreshing user tokens now");
 					this.setUserToken(user);
+				}catch (HttpStatusCodeException sce){
+					JOptionPane.showMessageDialog(null,
+							"Your session has timed out, please login","Timeout",
+							JOptionPane.WARNING_MESSAGE);
+					gui.logOutUser();
 				}
-			}catch (Exception ex){
-				JOptionPane.showMessageDialog(null,
-						"Your session has timed out, please login","Timeout",
-						JOptionPane.WARNING_MESSAGE);
+			}else
+			if(status.equals(HttpStatus.FORBIDDEN)){
+				System.out.println("User seems like dem nuh real broski");
 			}
+		}catch (Exception e){
+			JOptionPane.showMessageDialog(null,
+					"An error occurred","Error",
+					JOptionPane.ERROR_MESSAGE);
 		}
 	}
 
@@ -90,6 +105,7 @@ public class RestClient {
 		headers.set("Authorization", "Bearer "+token.getAccessToken());
 		HttpEntity entity = new HttpEntity(headers);
 		try{
+			System.out.println("getting user object from server\n"+"accesstoken: "+token.getAccessToken());
 			ResponseEntity<Users> response = restTemplate.postForEntity(GET_USER_LOGIN, entity, Users.class);
 			return response.getBody();
 		}catch (ResourceAccessException r){
@@ -98,25 +114,12 @@ public class RestClient {
 					"Unable to connect to the server!","Connection Failed",
 					JOptionPane.WARNING_MESSAGE);
 			return null;
+		}catch (HttpStatusCodeException sc){
+			System.out.println("User seems like dem nuh real broski");
 		}catch (Exception e){
-			System.out.println("SENDING REFRESH TOKEN");
-			HttpHeaders refreshHeaders = new HttpHeaders();
-			refreshHeaders.set("Authorization", "Bearer "+token.getRefreshToken());
-			HttpEntity refreshEntity = new HttpEntity(refreshHeaders);
-			try{
-				ResponseEntity<String[]> response = restTemplate.exchange(GET_REFRESH_TOKEN,HttpMethod.GET,refreshEntity,String[].class);
-				System.out.println("UPDATING NEW TOKENS");
-				token.setAccessToken(response.getBody()[0]);
-				System.out.println("RE-EXECUTING UPDATE THEME METHOD");
-				if(!tokenRefreshed){
-					tokenRefreshed = true;
-					this.getUserLogin();
-				}
-			}catch (Exception ex){
-				JOptionPane.showMessageDialog(null,
-						"Your session has timed out, please login","Timeout",
-						JOptionPane.WARNING_MESSAGE);
-			}
+			JOptionPane.showMessageDialog(null,
+					"An error occurred","Error",
+					JOptionPane.ERROR_MESSAGE);
 		}
 		return null;
 	}
@@ -148,25 +151,33 @@ public class RestClient {
 				JOptionPane.showMessageDialog(null,
 						"Unable to connect to the server!","Connection Failed",
 						JOptionPane.WARNING_MESSAGE);
-			}catch (Exception e){
-				System.out.println("SENDING REFRESH TOKEN");
-				HttpHeaders refreshHeaders = new HttpHeaders();
-				refreshHeaders.set("Authorization", "Bearer "+token.getRefreshToken());
-				HttpEntity refreshEntity = new HttpEntity(refreshHeaders);
-				try{
-					ResponseEntity<String[]> response = restTemplate.exchange(GET_REFRESH_TOKEN,HttpMethod.GET,refreshEntity,String[].class);
-					System.out.println("UPDATING NEW TOKENS");
-					token.setAccessToken(response.getBody()[0]);
-					System.out.println("RE-EXECUTING UPDATE THEME METHOD");
-					if(!tokenRefreshed){
-						tokenRefreshed = true;
+			}catch (HttpStatusCodeException sc){
+				HttpStatus status = sc.getStatusCode();
+				if(status.equals(HttpStatus.UNAUTHORIZED)) {	//Access token needs refreshing
+					System.out.println("SENDING REFRESH TOKEN");
+					HttpHeaders refreshHeaders = new HttpHeaders();
+					refreshHeaders.set("Authorization", "Bearer "+token.getRefreshToken());
+					HttpEntity refreshEntity = new HttpEntity(refreshHeaders);
+					try{
+						ResponseEntity<String[]> response = restTemplate.exchange(GET_REFRESH_TOKEN,HttpMethod.GET,refreshEntity,String[].class);
+						System.out.println("UPDATING NEW TOKENS");
+						token.setAccessToken(response.getBody()[0]);
+						System.out.println("refreshing user tokens now");
 						this.addNewCredential(credential);
+					}catch (HttpStatusCodeException sce){
+						JOptionPane.showMessageDialog(null,
+								"Your session has timed out, please login","Timeout",
+								JOptionPane.WARNING_MESSAGE);
+						gui.logOutUser();
 					}
-				}catch (Exception ex){
-					JOptionPane.showMessageDialog(null,
-							"Your session has timed out, please login","Timeout",
-							JOptionPane.WARNING_MESSAGE);
+				}else
+				if(status.equals(HttpStatus.FORBIDDEN)){
+					System.out.println("User seems like dem nuh real broski");
 				}
+			}catch (Exception e){
+				JOptionPane.showMessageDialog(null,
+						"An error occurred","Error",
+						JOptionPane.ERROR_MESSAGE);
 			}
 		}
 	}
@@ -188,25 +199,33 @@ public class RestClient {
 			JOptionPane.showMessageDialog(null,
 					"Unable to connect to the server!","Connection Failed",
 					JOptionPane.WARNING_MESSAGE);
-		}catch (Exception e){
-			System.out.println("SENDING REFRESH TOKEN");
-			HttpHeaders refreshHeaders = new HttpHeaders();
-			refreshHeaders.set("Authorization", "Bearer "+token.getRefreshToken());
-			HttpEntity refreshEntity = new HttpEntity(refreshHeaders);
-			try{
-				ResponseEntity<String[]> response = restTemplate.exchange(GET_REFRESH_TOKEN,HttpMethod.GET,refreshEntity,String[].class);
-				System.out.println("UPDATING NEW TOKENS");
-				token.setAccessToken(response.getBody()[0]);
-				System.out.println("RE-EXECUTING UPDATE THEME METHOD");
-				if(!tokenRefreshed){
-					tokenRefreshed = true;
+		}catch (HttpStatusCodeException sc){
+			HttpStatus status = sc.getStatusCode();
+			if(status.equals(HttpStatus.UNAUTHORIZED)) {	//Access token needs refreshing
+				System.out.println("SENDING REFRESH TOKEN");
+				HttpHeaders refreshHeaders = new HttpHeaders();
+				refreshHeaders.set("Authorization", "Bearer "+token.getRefreshToken());
+				HttpEntity refreshEntity = new HttpEntity(refreshHeaders);
+				try{
+					ResponseEntity<String[]> response = restTemplate.exchange(GET_REFRESH_TOKEN,HttpMethod.GET,refreshEntity,String[].class);
+					System.out.println("UPDATING NEW TOKENS");
+					token.setAccessToken(response.getBody()[0]);
+					System.out.println("refreshing user tokens now");
 					this.updateCredential(credential);
+				}catch (HttpStatusCodeException sce){
+					JOptionPane.showMessageDialog(null,
+							"Your session has timed out, please login","Timeout",
+							JOptionPane.WARNING_MESSAGE);
+					gui.logOutUser();
 				}
-			}catch (Exception ex){
-				JOptionPane.showMessageDialog(null,
-						"Your session has timed out, please login","Timeout",
-						JOptionPane.WARNING_MESSAGE);
+			}else
+			if(status.equals(HttpStatus.FORBIDDEN)){
+				System.out.println("User seems like dem nuh real broski");
 			}
+		}catch (Exception e){
+			JOptionPane.showMessageDialog(null,
+					"An error occurred","Error",
+					JOptionPane.ERROR_MESSAGE);
 		}
 	}
 	
@@ -224,25 +243,33 @@ public class RestClient {
 			JOptionPane.showMessageDialog(null,
 					"Unable to connect to the server!","Connection Failed",
 					JOptionPane.WARNING_MESSAGE);
-		}catch (Exception e){
-			System.out.println("SENDING REFRESH TOKEN");
-			HttpHeaders refreshHeaders = new HttpHeaders();
-			refreshHeaders.set("Authorization", "Bearer "+token.getRefreshToken());
-			HttpEntity refreshEntity = new HttpEntity(refreshHeaders);
-			try{
-				ResponseEntity<String[]> response = restTemplate.exchange(GET_REFRESH_TOKEN,HttpMethod.GET,refreshEntity,String[].class);
-				System.out.println("UPDATING NEW TOKENS");
-				token.setAccessToken(response.getBody()[0]);
-				System.out.println("RE-EXECUTING UPDATE THEME METHOD");
-				if(!tokenRefreshed){
-					tokenRefreshed = true;
+		}catch (HttpStatusCodeException sc){
+			HttpStatus status = sc.getStatusCode();
+			if(status.equals(HttpStatus.UNAUTHORIZED)) {	//Access token needs refreshing
+				System.out.println("SENDING REFRESH TOKEN");
+				HttpHeaders refreshHeaders = new HttpHeaders();
+				refreshHeaders.set("Authorization", "Bearer "+token.getRefreshToken());
+				HttpEntity refreshEntity = new HttpEntity(refreshHeaders);
+				try{
+					ResponseEntity<String[]> response = restTemplate.exchange(GET_REFRESH_TOKEN,HttpMethod.GET,refreshEntity,String[].class);
+					System.out.println("UPDATING NEW TOKENS");
+					token.setAccessToken(response.getBody()[0]);
+					System.out.println("refreshing user tokens now");
 					this.getCredentialById(credentialid);
+				}catch (HttpStatusCodeException sce){
+					JOptionPane.showMessageDialog(null,
+							"Your session has timed out, please login","Timeout",
+							JOptionPane.WARNING_MESSAGE);
+					gui.logOutUser();
 				}
-			}catch (Exception ex){
-				JOptionPane.showMessageDialog(null,
-						"Your session has timed out, please login","Timeout",
-						JOptionPane.WARNING_MESSAGE);
+			}else
+			if(status.equals(HttpStatus.FORBIDDEN)){
+				System.out.println("User seems like dem nuh real broski");
 			}
+		}catch (Exception e){
+			JOptionPane.showMessageDialog(null,
+					"An error occurred","Error",
+					JOptionPane.ERROR_MESSAGE);
 		}
 	}	
 	
@@ -262,25 +289,33 @@ public class RestClient {
 					"Unable to connect to the server!","Connection Failed",
 					JOptionPane.WARNING_MESSAGE);
 			return null;
-		}catch (Exception e){
-			System.out.println("SENDING REFRESH TOKEN");
-			HttpHeaders refreshHeaders = new HttpHeaders();
-			refreshHeaders.set("Authorization", "Bearer "+token.getRefreshToken());
-			HttpEntity refreshEntity = new HttpEntity(refreshHeaders);
-			try{
-				ResponseEntity<String[]> response = restTemplate.exchange(GET_REFRESH_TOKEN,HttpMethod.GET,refreshEntity,String[].class);
-				System.out.println("UPDATING NEW TOKENS");
-				token.setAccessToken(response.getBody()[0]);
-				System.out.println("RE-EXECUTING UPDATE THEME METHOD");
-				if(!tokenRefreshed){
-					tokenRefreshed = true;
+		}catch (HttpStatusCodeException sc){
+			HttpStatus status = sc.getStatusCode();
+			if(status.equals(HttpStatus.UNAUTHORIZED)) {	//Access token needs refreshing
+				System.out.println("SENDING REFRESH TOKEN");
+				HttpHeaders refreshHeaders = new HttpHeaders();
+				refreshHeaders.set("Authorization", "Bearer "+token.getRefreshToken());
+				HttpEntity refreshEntity = new HttpEntity(refreshHeaders);
+				try{
+					ResponseEntity<String[]> response = restTemplate.exchange(GET_REFRESH_TOKEN,HttpMethod.GET,refreshEntity,String[].class);
+					System.out.println("UPDATING NEW TOKENS");
+					token.setAccessToken(response.getBody()[0]);
+					System.out.println("refreshing user tokens now");
 					this.getAllUserCredentialByUserId(userid);
+				}catch (HttpStatusCodeException sce){
+					JOptionPane.showMessageDialog(null,
+							"Your session has timed out, please login","Timeout",
+							JOptionPane.WARNING_MESSAGE);
+					gui.logOutUser();
 				}
-			}catch (Exception ex){
-				JOptionPane.showMessageDialog(null,
-						"Your session has timed out, please login","Timeout",
-						JOptionPane.WARNING_MESSAGE);
+			}else
+			if(status.equals(HttpStatus.FORBIDDEN)){
+				System.out.println("User seems like dem nuh real broski");
 			}
+		}catch (Exception e){
+			JOptionPane.showMessageDialog(null,
+					"An error occurred","Error",
+					JOptionPane.ERROR_MESSAGE);
 		}
 		return null;
 	}
@@ -298,25 +333,33 @@ public class RestClient {
 			JOptionPane.showMessageDialog(null,
 					"Unable to connect to the server!","Connection Failed",
 					JOptionPane.WARNING_MESSAGE);
-		}catch (Exception e){
-			System.out.println("SENDING REFRESH TOKEN");
-			HttpHeaders refreshHeaders = new HttpHeaders();
-			refreshHeaders.set("Authorization", "Bearer "+token.getRefreshToken());
-			HttpEntity refreshEntity = new HttpEntity(refreshHeaders);
-			try{
-				ResponseEntity<String[]> response = restTemplate.exchange(GET_REFRESH_TOKEN,HttpMethod.GET,refreshEntity,String[].class);
-				System.out.println("UPDATING NEW TOKENS");
-				token.setAccessToken(response.getBody()[0]);
-				System.out.println("RE-EXECUTING UPDATE THEME METHOD");
-				if(!tokenRefreshed){
-					tokenRefreshed = true;
+		}catch (HttpStatusCodeException sc){
+			HttpStatus status = sc.getStatusCode();
+			if(status.equals(HttpStatus.UNAUTHORIZED)) {	//Access token needs refreshing
+				System.out.println("SENDING REFRESH TOKEN");
+				HttpHeaders refreshHeaders = new HttpHeaders();
+				refreshHeaders.set("Authorization", "Bearer "+token.getRefreshToken());
+				HttpEntity refreshEntity = new HttpEntity(refreshHeaders);
+				try{
+					ResponseEntity<String[]> response = restTemplate.exchange(GET_REFRESH_TOKEN,HttpMethod.GET,refreshEntity,String[].class);
+					System.out.println("UPDATING NEW TOKENS");
+					token.setAccessToken(response.getBody()[0]);
+					System.out.println("refreshing user tokens now");
 					this.deleteCredentialById(credentialid);
+				}catch (HttpStatusCodeException sce){
+					JOptionPane.showMessageDialog(null,
+							"Your session has timed out, please login","Timeout",
+							JOptionPane.WARNING_MESSAGE);
+					gui.logOutUser();
 				}
-			}catch (Exception ex){
-				JOptionPane.showMessageDialog(null,
-						"Your session has timed out, please login","Timeout",
-						JOptionPane.WARNING_MESSAGE);
+			}else
+			if(status.equals(HttpStatus.FORBIDDEN)){
+				System.out.println("User seems like dem nuh real broski");
 			}
+		}catch (Exception e){
+			JOptionPane.showMessageDialog(null,
+					"An error occurred","Error",
+					JOptionPane.ERROR_MESSAGE);
 		}
 	}
 
@@ -342,26 +385,33 @@ public class RestClient {
 			JOptionPane.showMessageDialog(null,
 					"Unable to connect to the server!","Connection Failed",
 					JOptionPane.WARNING_MESSAGE);
-		}catch (Exception e){
-			System.out.println(e);
-			System.out.println("SENDING REFRESH TOKEN");
-			HttpHeaders refreshHeaders = new HttpHeaders();
-			refreshHeaders.set("Authorization", "Bearer "+token.getRefreshToken());
-			HttpEntity refreshEntity = new HttpEntity(refreshHeaders);
-			try{
-				ResponseEntity<String[]> response = restTemplate.exchange(GET_REFRESH_TOKEN,HttpMethod.GET,refreshEntity,String[].class);
-				System.out.println("UPDATING NEW TOKENS");
-				token.setAccessToken(response.getBody()[0]);
-				System.out.println("RE-EXECUTING UPDATE THEME METHOD");
-				if(!tokenRefreshed){
-					tokenRefreshed = true;
+		}catch (HttpStatusCodeException sc){
+			HttpStatus status = sc.getStatusCode();
+			if(status.equals(HttpStatus.UNAUTHORIZED)) {	//Access token needs refreshing
+				System.out.println("SENDING REFRESH TOKEN");
+				HttpHeaders refreshHeaders = new HttpHeaders();
+				refreshHeaders.set("Authorization", "Bearer "+token.getRefreshToken());
+				HttpEntity refreshEntity = new HttpEntity(refreshHeaders);
+				try{
+					ResponseEntity<String[]> response = restTemplate.exchange(GET_REFRESH_TOKEN,HttpMethod.GET,refreshEntity,String[].class);
+					System.out.println("UPDATING NEW TOKENS");
+					token.setAccessToken(response.getBody()[0]);
+					System.out.println("refreshing user tokens now");
 					this.searchCredentialByUserId(credential, userid);
+				}catch (HttpStatusCodeException sce){
+					JOptionPane.showMessageDialog(null,
+							"Your session has timed out, please login","Timeout",
+							JOptionPane.WARNING_MESSAGE);
+					gui.logOutUser();
 				}
-			}catch (Exception ex){
-				JOptionPane.showMessageDialog(null,
-						"Your session has timed out, please login","Timeout",
-						JOptionPane.WARNING_MESSAGE);
+			}else
+			if(status.equals(HttpStatus.FORBIDDEN)){
+				System.out.println("User seems like dem nuh real broski");
 			}
+		}catch (Exception e){
+			JOptionPane.showMessageDialog(null,
+					"An error occurred","Error",
+					JOptionPane.ERROR_MESSAGE);
 		}
 		return null;
 	}
@@ -378,28 +428,33 @@ public class RestClient {
 			JOptionPane.showMessageDialog(null,
 					"Unable to connect to the server!","Connection Failed",
 					JOptionPane.WARNING_MESSAGE);
-		}catch (Exception e){		//EXCEPTION FOR EXPIRED ACCESS TOKEN and ANY ERRORS
-			System.out.println("SENDING REFRESH TOKEN");
-			HttpHeaders refreshHeaders = new HttpHeaders();
-			refreshHeaders.set("Authorization", "Bearer "+token.getRefreshToken());
-			HttpEntity refreshEntity = new HttpEntity(refreshHeaders);
-			try{
-				ResponseEntity<String[]> response = restTemplate.exchange(GET_REFRESH_TOKEN,HttpMethod.GET,refreshEntity,String[].class);
-				System.out.println("UPDATING NEW TOKENS");
-				token.setAccessToken(response.getBody()[0]);
-				System.out.println("RE-EXECUTING UPDATE THEME METHOD");
-				if(!tokenRefreshed){
-					tokenRefreshed = true;
+		}catch (HttpStatusCodeException sc){
+			HttpStatus status = sc.getStatusCode();
+			if(status.equals(HttpStatus.UNAUTHORIZED)) {	//Access token needs refreshing
+				System.out.println("SENDING REFRESH TOKEN");
+				HttpHeaders refreshHeaders = new HttpHeaders();
+				refreshHeaders.set("Authorization", "Bearer "+token.getRefreshToken());
+				HttpEntity refreshEntity = new HttpEntity(refreshHeaders);
+				try{
+					ResponseEntity<String[]> response = restTemplate.exchange(GET_REFRESH_TOKEN,HttpMethod.GET,refreshEntity,String[].class);
+					System.out.println("UPDATING NEW TOKENS");
+					token.setAccessToken(response.getBody()[0]);
+					System.out.println("refreshing user tokens now");
 					this.updateActiveUserTheme(user);
-				}else
+				}catch (HttpStatusCodeException sce){
 					JOptionPane.showMessageDialog(null,
-							"An error occurred","Error",
-							JOptionPane.ERROR_MESSAGE);
-			}catch (Exception ex){
-				JOptionPane.showMessageDialog(null,
-						"Your session has timed out, please login","Timeout",
-						JOptionPane.WARNING_MESSAGE);
+							"Your session has timed out, please login","Timeout",
+							JOptionPane.WARNING_MESSAGE);
+					gui.logOutUser();
+				}
+			}else
+			if(status.equals(HttpStatus.FORBIDDEN)){
+				System.out.println("User seems like dem nuh real broski");
 			}
+		}catch (Exception e){
+			JOptionPane.showMessageDialog(null,
+					"An error occurred","Error",
+					JOptionPane.ERROR_MESSAGE);
 		}
 	}
 

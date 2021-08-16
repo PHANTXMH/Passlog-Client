@@ -23,16 +23,19 @@ public class Authentication
 			{
 				user = gui.getRestClient().getUserLogin();
 				if(user  == null){
+					System.out.println("inside authentication user is null");
 					JOptionPane.showMessageDialog(null,
 							"User does not exist!","Log In",
 							JOptionPane.WARNING_MESSAGE);
 				}else{
+					System.out.println("user not null and starting dashboard");
 					gui.acceptActiveUser(user);
 					gui.createDashboard();
 					gui.populateCredentialTable();
 				}
 			}
 		}catch (ResourceAccessException r){
+			System.out.println("inside authentication and lost connection to the server");
 			JOptionPane.showMessageDialog(null,
 					"Unable to connect to the server!","Connection Failed",
 					JOptionPane.WARNING_MESSAGE);

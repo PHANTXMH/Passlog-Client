@@ -72,7 +72,7 @@ public class GUI
 	public JButton loginButton;
 	private static JLabel copyrightLabel = new JLabel("Copyright and Powered by MH Productions © 2021. All Rights Reserved.");
 	private JPanel copyrightPanel = new JPanel();
-	private final RestClient restClient = new RestClient();
+	private final RestClient restClient = new RestClient(this);
 	private  Users activeUser;
 	int tpi = 0;	//TABLE POPULATION INCREMENTER
 	int records;
@@ -220,6 +220,7 @@ public class GUI
 	{
 		public void actionPerformed(ActionEvent loginListener)
 		{
+
 			restClient.setUserToken(getLoginCredentials());	//GETS TOKEN FROM SERVER
 			login.authenticateCredentials(guiClass, getLoginCredentials());
 		}
@@ -508,13 +509,18 @@ public class GUI
 
 			if(dialogButton == JOptionPane.YES_OPTION)
 			{
-				frame.dispose();
-				activeUser = null;
-				restClient.setToken(null);
-				createAuthenticationGUI();
+				logOutUser();
 			}
 		}
 	};
+
+	public void logOutUser(){
+		frame.dispose();
+		secondFrame.dispose();
+		activeUser = null;
+		restClient.setToken(null);
+		createAuthenticationGUI();
+	}
 
 	ActionListener changeColorAction = new ActionListener() {
 		public void actionPerformed(ActionEvent changeColourListener) {
