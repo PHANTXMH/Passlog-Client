@@ -1,4 +1,5 @@
-This is a web application that was created using Springboot and Postgresql.
+This client application can be downloaded at: https://phantxmh-passlog.herokuapp.com
+||
 It is a password logger which consumes a restful API that can be found on my github account
 as Passlog-Server.
 ||
